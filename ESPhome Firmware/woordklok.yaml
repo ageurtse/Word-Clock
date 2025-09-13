@@ -1,0 +1,1029 @@
+################################################################################
+# Globals
+################################################################################
+globals:
+  - id: global_brightness
+    type: float
+    restore_value: yes
+
+  - id: global_red
+    type: float
+    restore_value: yes
+
+  - id: global_green
+    type: float
+    restore_value: yes
+
+  - id: global_blue
+    type: float
+    restore_value: yes
+
+
+################################################################################
+# Board Configuration
+################################################################################
+esphome:
+  name: woordklok
+  friendly_name: woordklok
+  on_boot:
+    then:
+      - number.set:
+          id: brightness_control
+          value: !lambda "return id(global_brightness);"
+      - number.set:
+          id: red_control
+          value: !lambda "return id(global_red);"
+      - number.set:
+          id: green_control
+          value: !lambda "return id(global_green);"
+      - number.set:
+          id: blue_control
+          value: !lambda "return id(global_blue);"
+
+
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf 
+  
+################################################################################
+# Enable logging
+################################################################################
+logger:
+  level: INFO   # Change INFO to DEBUG if you are having issues!
+  baud_rate: 0  # disable logging over uart (or not, the C3 has two uarts)
+
+################################################################################
+# Enable Home Assistant API
+################################################################################
+api:
+  reboot_timeout: 0s
+
+################################################################################
+# OTA
+################################################################################
+ota:
+- platform: esphome
+
+################################################################################
+# WiFi
+################################################################################
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: 192.168.0.63
+    gateway: 192.168.0.1
+    subnet: 255.255.255.0  
+  output_power: 8.5dB
+  
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+
+captive_portal:
+
+###############################################################################
+# Web Server
+################################################################################
+web_server:
+  port: 80
+  version: 3
+  include_internal: true
+
+
+
+################################################################################
+# Switch
+################################################################################
+switch:
+  - platform: restart
+    name: "Restart"
+    id: device_restart
+  
+  - platform: safe_mode
+    name: Use Safe Mode
+    id: device_safe_mode
+
+################################################################################
+# Text Sensors
+################################################################################
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: ip_address
+      name: "IP Address"
+      entity_category: diagnostic
+    ssid:
+      id: ssid
+      name: "Connected SSID"
+      entity_category: diagnostic
+    mac_address:
+      id: mac_address
+      name: "Mac Address"
+      entity_category: diagnostic
+
+
+################################################################################
+# Time script
+################################################################################
+time:
+  - platform: homeassistant
+    id: esptime
+    on_time:
+      - seconds: "/1"
+        then:
+          - script.execute: update_clock
+
+script:
+  - id: update_words
+    then:
+      - lambda: |-
+          id(het).turn_off().perform(); 
+          id(is).turn_off().perform(); 
+          id(kwart).turn_off().perform(); 
+          id(over).turn_off().perform(); 
+          id(voor).turn_off().perform(); 
+          id(half).turn_off().perform(); 
+          id(am).turn_off().perform(); 
+          id(pm).turn_off().perform(); 
+          id(uur).turn_off().perform(); 
+
+          id(m1).turn_off().perform(); 
+          id(m2).turn_off().perform();
+          id(m3).turn_off().perform(); 
+          id(m4).turn_off().perform();  
+          id(m5).turn_off().perform(); 
+          id(m6).turn_off().perform();
+          id(m7).turn_off().perform(); 
+          id(m8).turn_off().perform();  
+          id(m9).turn_off().perform(); 
+          id(m10).turn_off().perform();
+          id(m11).turn_off().perform(); 
+          id(m12).turn_off().perform();  
+          id(m13).turn_off().perform(); 
+          id(m14).turn_off().perform();
+          id(h1).turn_off().perform(); 
+          id(h2).turn_off().perform();
+          id(h3).turn_off().perform(); 
+          id(h4).turn_off().perform();  
+          id(h5).turn_off().perform(); 
+          id(h6).turn_off().perform();
+          id(h7).turn_off().perform(); 
+          id(h8).turn_off().perform();  
+          id(h9).turn_off().perform(); 
+          id(h10).turn_off().perform();
+          id(h11).turn_off().perform(); 
+          id(h12).turn_off().perform();  
+
+
+  - id: update_clock
+    then:
+      - lambda: |-
+          id(het).turn_on().perform(); 
+          id(is).turn_on().perform(); 
+
+
+          int h = id(esptime).now().hour;
+          int m = id(esptime).now().minute;
+
+          if (h>12) { h=h-12;}
+          int m_new = m;
+          int h_new = h;
+
+          ESP_LOGD("woordklok", "Het is nu %02d:%02d", h, m);
+          
+          if (m==0)
+            { 
+              id(voor).turn_off().perform();
+              id(kwart).turn_off().perform(); 
+              id(uur).turn_on().perform();
+            }
+          else if (m>0 and m<15)
+            { 
+              id(over).turn_on().perform(); 
+              id(voor).turn_off().perform();
+              id(uur).turn_off().perform();
+            }
+          else if (m==15)
+            { 
+              id(over).turn_on().perform(); 
+              id(voor).turn_off().perform();
+              id(kwart).turn_on().perform();
+              id(m14).turn_off().perform();
+            }
+          else if (m>15 and m<30)
+            { 
+              id(over).turn_off().perform(); 
+              id(voor).turn_on().perform();
+              id(half).turn_on().perform();
+              id(kwart).turn_off().perform();
+              m_new = 30-m;
+              if (h<12) { h_new = h+1; } else { h_new=1; }
+            }
+          else if (m==30)
+            { 
+              id(m1).turn_off().perform(); 
+              id(over).turn_off().perform(); 
+              id(voor).turn_off().perform();
+              id(half).turn_on().perform();
+              if (h<12) { h_new = h+1; } else { h_new=1; }
+            }
+          else if (m>30 and m<45)
+            { 
+              id(over).turn_on().perform(); 
+              id(voor).turn_off().perform();
+              id(half).turn_on().perform();
+              m_new = m-30;
+              if (h<12) { h_new = h+1; } else { h_new=1; }
+            }
+          else if (m==45)
+            { 
+              id(over).turn_off().perform(); 
+              id(voor).turn_on().perform();
+              id(kwart).turn_on().perform();
+              id(half).turn_off().perform();
+              id(m14).turn_off().perform();
+              if (h<12) { h_new = h+1; } else { h_new=1; }
+            }
+          else if (m>45 and m<60)
+            { 
+              id(over).turn_off().perform(); 
+              id(voor).turn_on().perform();
+              id(kwart).turn_off().perform();
+              m_new = 60-m;
+              if (h<12) { h_new = h+1; } else { h_new=1; }
+            }
+          
+
+          ESP_LOGD("woordklok","minuten om weer te geven %02d", m_new);
+
+          if (m_new==0) 
+            {
+                id(m14).turn_off().perform();
+                id(m1).turn_off().perform();
+                id(m2).turn_off().perform();
+            }  
+          else if (m_new==1)
+            {
+              id(m1).turn_on().perform();
+              id(m2).turn_off().perform();
+            }
+          else if (m_new==2)
+            {
+              id(m2).turn_on().perform();
+              id(m1).turn_off().perform();
+              id(m3).turn_off().perform();
+            }
+          else if (m_new==3)
+            {
+              id(m3).turn_on().perform();
+              id(m2).turn_off().perform();
+              id(m4).turn_off().perform();
+            }
+          else if (m_new==4)
+            {
+              id(m4).turn_on().perform();
+              id(m3).turn_off().perform();
+              id(m5).turn_off().perform();
+            }
+          else if (m_new==5)
+            {
+              id(m5).turn_on().perform();
+              id(m4).turn_off().perform();
+              id(m6).turn_off().perform();
+            }
+          else if (m_new==6)
+            {
+              id(m6).turn_on().perform();
+              id(m5).turn_off().perform();
+              id(m7).turn_off().perform();
+            }
+          else if (m_new==7)
+            {
+              id(m7).turn_on().perform();
+              id(m6).turn_off().perform();
+              id(m8).turn_off().perform();
+            }
+          else if (m_new==8)
+            {
+              id(m8).turn_on().perform();
+              id(m7).turn_off().perform();
+              id(m9).turn_off().perform();
+            }
+          else if (m_new==9)
+            {
+              id(m9).turn_on().perform();
+              id(m8).turn_off().perform();
+              id(m10).turn_off().perform();
+            }
+          else if (m_new==10)
+            {
+              id(m10).turn_on().perform();
+              id(m9).turn_off().perform();
+              id(m11).turn_off().perform();
+            }
+          else if (m_new==11)
+            {
+              id(m11).turn_on().perform();
+              id(m10).turn_off().perform();
+              id(m12).turn_off().perform();
+            }
+          else if (m_new==12)
+            {
+              id(m12).turn_on().perform();
+              id(m11).turn_off().perform();
+              id(m13).turn_off().perform();
+            }
+          else if (m_new==13)
+            {
+              id(m13).turn_on().perform();
+              id(m12).turn_off().perform();
+              id(m14).turn_off().perform();
+            }
+          else if (m_new==14)
+            {
+              id(m14).turn_on().perform();
+              id(m1).turn_off().perform();
+              id(m13).turn_off().perform();
+            }
+
+
+          ESP_LOGD("woordklok","uren om weer te geven %02d", h_new);
+          if (h_new==0) 
+            {
+                id(h11).turn_off().perform();
+                id(h12).turn_on().perform();
+            }  
+          else if (h_new==1)
+            {
+              id(h1).turn_on().perform();
+              id(h12).turn_off().perform();             
+            }
+          else if (h_new==2)
+            {
+              id(h2).turn_on().perform();
+              id(h1).turn_off().perform();
+            }
+          else if (h_new==3)
+            {
+              id(h3).turn_on().perform();
+              id(h2).turn_off().perform();
+            }
+          else if (h_new==4)
+            {
+              id(h4).turn_on().perform();
+              id(h3).turn_off().perform();
+            }
+          else if (h_new==5)
+            {
+              id(h5).turn_on().perform();
+              id(h4).turn_off().perform();
+            }
+          else if (h_new==6)
+            {
+              id(h6).turn_on().perform();
+              id(h5).turn_off().perform();
+            }
+          else if (h_new==7)
+            {
+              id(h7).turn_on().perform();
+              id(h6).turn_off().perform();
+            }
+          else if (h_new==8)
+            {
+              id(h8).turn_on().perform();
+              id(h7).turn_off().perform();
+            }
+          else if (h_new==9)
+            {
+              id(h9).turn_on().perform();
+              id(h8).turn_off().perform();
+            }
+          else if (h_new==10)
+            {
+              id(h10).turn_on().perform();
+              id(h9).turn_off().perform();
+            }
+          else if (h_new==11)
+            {
+              id(h11).turn_on().perform();
+              id(h10).turn_off().perform();
+            }
+          else if (h_new==12)
+            {
+              id(h12).turn_on().perform();
+              id(h11).turn_off().perform();
+            }
+
+
+
+##############################################################################
+# Numbers for controlling global brightness
+################################################################################
+number:
+  - platform: template
+    name: "Global Brightness"
+    id: brightness_control
+    optimistic: true
+    min_value: 0
+    max_value: 1
+    step: 0.05
+    set_action:
+      - globals.set:
+          id: global_brightness
+          value: !lambda 'return x;'
+    on_value:
+      then:
+        - script.execute: update_words 
+
+  - platform: template
+    name: "Global Red"
+    id: red_control
+    optimistic: true
+    min_value: 0
+    max_value: 1
+    step: .1
+    set_action:
+      - globals.set:
+          id: global_red
+          value: !lambda 'return x;'
+    on_value:
+      then:
+        - script.execute: update_words
+
+  - platform: template
+    name: "Global Green"
+    id: green_control
+    optimistic: true
+    min_value: 0
+    max_value: 1
+    step: .1
+    set_action:
+      - globals.set:
+          id: global_green
+          value: !lambda 'return x;'
+    on_value:
+      then:
+        - script.execute: update_words
+
+
+  - platform: template
+    name: "Global Blue"
+    id: blue_control
+    optimistic: true
+    min_value: 0
+    max_value: 1
+    step: .1
+    set_action:
+      - globals.set:
+          id: global_blue
+          value: !lambda 'return x;'
+    on_value:
+      then:
+        - script.execute: update_words
+
+################################################################################
+# Word's
+################################################################################
+light:
+  - platform: esp32_rmt_led_strip
+    rgb_order: GRB
+    pin: GPIO3
+    num_leds: 169
+    chipset: WS2812
+    name: "LED"
+    id: led
+    disabled_by_default: false
+    icon: mdi:led-on
+    default_transition_length: 1s
+    internal: true
+    effects:
+      - addressable_twinkle:
+
+  - platform: partition
+    name: "het"
+    id: het
+    segments:
+      - id: led
+        from: 0 
+        to: 2
+    internal: true
+    on_turn_on:
+      - light.turn_on:
+          id: het
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'
+
+  - platform: partition
+    name: "is"
+    id: is
+    segments:
+      - id: led
+        from: 4
+        to: 5
+    on_turn_on:
+      - light.turn_on:
+          id: is
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+
+  - platform: partition
+    name: "m1"
+    id: m1
+    segments:
+      - id: led
+        from: 7 
+        to: 9
+    on_turn_on:
+      - light.turn_on:
+          id: m1
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'
+          
+  - platform: partition
+    name: "m2"
+    id: m2
+    segments:
+      - id: led
+        from: 22
+        to: 25
+    on_turn_on:
+      - light.turn_on:
+          id: m2
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+
+  - platform: partition
+    name: "m3"
+    id: m3
+    segments:
+      - id: led
+        from: 18 
+        to: 21
+    on_turn_on:
+      - light.turn_on:
+          id: m3
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'
+
+  - platform: partition
+    name: "m4"
+    id: m4
+    segments:
+      - id: led
+        from: 13
+        to: 16
+    on_turn_on:
+      - light.turn_on:
+          id: m4
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'
+
+  - platform: partition
+    name: "m5"
+    id: m5
+    segments:
+      - id: led
+        from: 26 
+        to: 29
+    on_turn_on:
+      - light.turn_on:
+          id: m5
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'
+
+  - platform: partition
+    name: "m6"
+    id: m6
+    segments:
+      - id: led
+        from: 10
+        to: 12
+    on_turn_on:
+      - light.turn_on:  
+          id: m6
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "m7"
+    id: m7
+    segments:
+      - id: led
+        from: 30 
+        to: 34
+    on_turn_on:
+      - light.turn_on:
+          id: m7
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+ 
+  - platform: partition
+    name: "m8"
+    id: m8
+    segments:
+      - id: led
+        from: 35
+        to: 38
+    on_turn_on:
+      - light.turn_on:
+          id: m8
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+
+  - platform: partition
+    name: "m9"
+    id: m9
+    segments:
+      - id: led
+        from: 47 
+        to: 51
+    on_turn_on:
+      - light.turn_on:
+          id: m9
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "m10"
+    id: m10
+    segments:
+      - id: led
+        from: 42
+        to: 45
+    on_turn_on:
+      - light.turn_on:
+          id: m10
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "m11"
+    id: m11
+    segments:
+      - id: led
+        from: 39 
+        to: 41
+    on_turn_on:
+      - light.turn_on:
+          id: m11
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "m12"
+    id: m12
+    segments:
+      - id: led
+        from: 52
+        to: 57
+    on_turn_on:
+      - light.turn_on:
+          id: m12
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+       
+  - platform: partition
+    name: "m13"
+    id: m13
+    segments:
+      - id: led
+        from: 58 
+        to: 64
+    on_turn_on:
+      - light.turn_on:
+          id: m13
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "m14"
+    id: m14
+    segments:
+      - id: led
+        from: 70
+        to: 77
+    on_turn_on:
+      - light.turn_on:
+          id: m14
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+       
+  - platform: partition
+    name: "kwart"
+    id: kwart
+    segments:
+      - id: led
+        from: 65 
+        to: 69
+    on_turn_on:
+      - light.turn_on:
+          id: kwart
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "voor"
+    id: voor
+    segments:
+      - id: led
+        from: 78
+        to: 81
+    on_turn_on:
+      - light.turn_on:
+          id: voor
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "over"
+    id: over
+    segments:
+      - id: led
+        from: 82 
+        to: 85
+    on_turn_on:
+      - light.turn_on:
+          id: over
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "half"
+    id: half
+    segments:
+      - id: led
+        from: 87
+        to: 90
+    on_turn_on:
+      - light.turn_on:
+          id: half
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+       
+  - platform: partition
+    name: "h1"
+    id: h1
+    segments:
+      - id: led
+        from: 101 
+        to: 103
+    on_turn_on:
+      - light.turn_on:
+          id: h1
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "h2"
+    id: h2
+    segments:
+      - id: led
+        from: 96
+        to: 99
+    on_turn_on:
+      - light.turn_on:
+          id: h2
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+       
+  - platform: partition
+    name: "h3"
+    id: h3
+    segments:
+      - id: led
+        from: 92 
+        to: 95
+    on_turn_on:
+      - light.turn_on:
+          id: h3
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "h4"
+    id: h4
+    segments:
+      - id: led
+        from: 104
+        to: 107
+    on_turn_on:
+      - light.turn_on:
+          id: h4
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "h5"
+    id: h5
+    segments:
+      - id: led
+        from: 109 
+        to: 112
+    on_turn_on:
+      - light.turn_on:
+          id: h5
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "h6"
+    id: h6
+    segments:
+      - id: led
+        from: 114
+        to: 116
+    on_turn_on:
+      - light.turn_on:
+          id: h6
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+       
+  - platform: partition
+    name: "h7"
+    id: h7
+    segments:
+      - id: led
+        from: 123 
+        to: 127
+    on_turn_on:
+      - light.turn_on:
+          id: h7
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "h8"
+    id: h8
+    segments:
+      - id: led
+        from: 118
+        to: 121
+    on_turn_on:
+      - light.turn_on:
+          id: h8
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+       
+  - platform: partition
+    name: "h9"
+    id: h9
+    segments:
+      - id: led
+        from: 131 
+        to: 135
+    on_turn_on:
+      - light.turn_on:
+          id: h9
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "h10"
+    id: h10
+    segments:
+      - id: led
+        from: 137
+        to: 140
+    on_turn_on:
+      - light.turn_on:
+          id: h10
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
+  - platform: partition
+    name: "h11"
+    id: h11
+    segments:
+      - id: led
+        from: 150
+        to: 152
+    on_turn_on:
+      - light.turn_on:
+          id: h11
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+            
+  - platform: partition
+    name: "h12"
+    id: h12
+    segments:
+      - id: led
+        from: 143
+        to: 148
+    on_turn_on:
+      - light.turn_on:
+          id: h12
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+            
+  - platform: partition
+    name: "uur"
+    id: uur
+    segments:
+      - id: led
+        from: 156
+        to: 158
+    on_turn_on:
+      - light.turn_on:
+          id: uur
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+            
+  - platform: partition
+    name: "am"
+    id: am
+    segments:
+      - id: led
+        from: 162
+        to: 163        
+    on_turn_on:
+      - light.turn_on:
+          id: am
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+            
+  - platform: partition
+    name: "pm"
+    id: pm
+    segments:
+      - id: led
+        from: 165
+        to: 166
+    on_turn_on:
+      - light.turn_on:
+          id: pm
+          brightness: !lambda 'return id(global_brightness);'
+          red: !lambda 'return id(global_red);'
+          green: !lambda 'return id(global_green);'
+          blue: !lambda 'return id(global_blue);'  
+    
